@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon agenda</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{--bg:#fff;--ink:#0b0b0b;--mute:#444;--line:#7c8aa0;--brand:#0033a0;--soon:#ff9f1c;--soonb:#c25400;--has:#dcefff;--ok:#0a8a2f;--bad:#c00000}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding:10px;gap:8px;-webkit-user-select:none;user-select:none}
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h1{flex:1;margin:0;text-align:center;font-size:clamp(28px,4.4vw,54px);color:var(--brand);text-transform:capitalize;min-width:200px}
+button{font:inherit;font-size:clamp(20px,2.5vw,30px);font-weight:800;border:3px solid var(--brand);background:var(--brand);color:#fff;border-radius:14px;padding:8px 18px;min-height:64px;cursor:pointer}
+button.alt{background:#fff;color:var(--brand)}
+button.add{background:var(--ok);border-color:var(--ok)}
+button.del{background:var(--bad);border-color:var(--bad);font-size:clamp(18px,2.2vw,26px);min-height:56px;white-space:nowrap}
+#next{display:flex;align-items:center;gap:12px;background:var(--has);border:4px solid var(--brand);border-radius:14px;padding:8px 14px;font-size:clamp(20px,2.7vw,34px);font-weight:800}
+#next.soon{background:var(--soon);border-color:var(--soonb)}
+#next .ic{font-size:1.5em}
+#grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow{text-align:center;font-weight:800;font-size:clamp(16px,2vw,26px);color:#fff;background:var(--brand);border-radius:8px;padding:4px 0;text-transform:capitalize}
+.cell{border:2px solid var(--line);border-radius:10px;padding:3px 5px;overflow:hidden;cursor:pointer;min-height:0;background:#fff}
+.cell.wk{background:#f0f2f7}
+.cell.out{opacity:.4}
+.cell.has{background:var(--has);border-color:var(--brand)}
+.cell.soon{background:var(--soon);border:4px solid var(--soonb)}
+.cell.today{outline:5px solid var(--brand);outline-offset:-3px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:4px}
+.num{font-weight:900;font-size:clamp(22px,3vw,38px)}
+.cell.today .num{background:var(--brand);color:#fff;border-radius:50%;min-width:1.5em;text-align:center}
+.badge{font-size:clamp(12px,1.5vw,19px);font-weight:900;background:#fff;color:var(--soonb);border-radius:6px;padding:0 5px}
+.e{font-size:clamp(13px,1.7vw,22px);line-height:1.2;margin-top:2px;padding:1px 4px;border-radius:6px;border-inline-start:6px solid;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.e .ic{font-size:1.15em;margin-inline-end:3px}
+.e b{margin-inline-end:4px}
+.more{font-size:clamp(13px,1.6vw,20px);font-weight:900;color:var(--brand);margin-top:2px}
+footer{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;font-size:clamp(14px,1.7vw,20px);font-weight:700;min-height:24px}
+footer i{display:inline-block;width:1em;height:1em;border-radius:4px;vertical-align:-2px;margin-inline-end:6px;border:2px solid}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:16px}
+#ov.on{display:flex}
+#box{background:#fff;border-radius:20px;padding:20px;width:min(800px,100%);max-height:100%;overflow:auto}
+#box h2{margin:0 0 12px;font-size:clamp(26px,3.6vw,44px);color:var(--brand);text-transform:capitalize}
+.alert{background:var(--soon);border:4px solid var(--soonb);border-radius:12px;padding:8px 12px;font-size:clamp(22px,3vw,36px);font-weight:900;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:16px;font-size:clamp(24px,3.2vw,40px);font-weight:700;padding:12px 16px;border-radius:14px;border-inline-start:12px solid;margin-bottom:12px}
+.row .big{font-size:2.2em;line-height:1}
+.row .t{flex:1}
+.row small{display:block;font-size:.85em;font-weight:900}
+.empty{font-size:clamp(22px,3vw,36px);color:var(--mute);margin:20px 0}
+.acts{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+label{display:block;font-size:clamp(22px,2.8vw,32px);font-weight:800;margin:14px 0 6px}
+input[type=text],input[type=date],input[type=time]{width:100%;font:inherit;font-size:clamp(26px,3.2vw,38px);padding:10px 12px;border:3px solid var(--brand);border-radius:12px;-webkit-user-select:text;user-select:text}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.quick button{font-size:clamp(18px,2.2vw,26px);min-height:56px;padding:6px 14px}
+.msg{font-size:clamp(20px,2.6vw,30px);font-weight:800;color:var(--bad);margin-top:10px;min-height:1.2em}
+.ask{font-size:clamp(26px,3.4vw,42px);font-weight:800;margin:10px 0 16px}
+#toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:var(--ok);color:#fff;font-size:clamp(22px,3vw,36px);font-weight:900;padding:14px 28px;border-radius:14px;display:none;z-index:9}
+</style>
+</head>
+<body>
+<header>
+  <button id="prev" aria-label="Mois précédent">◀</button>
+  <h1 id="title"></h1>
+  <button id="nextm" aria-label="Mois suivant">▶</button>
+  <button id="todayb" class="alt"></button>
+  <button id="addb" class="add" style="display:none">➕ Ajouter</button>
+</header>
+<div id="next"></div>
+<div id="grid"></div>
+<footer id="foot"></footer>
+<div id="ov"><div id="box"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ======== RÉGLAGES : à modifier ici ======== */
+const CFG = {
+  CALENDAR_ID: "592c64e7fb1130ea2204d5906b2c33ee8f11b57c98eb2317b6fc991f1369aecc@group.calendar.google.com",   // ex. "nom@gmail.com" ou "xxx@group.calendar.google.com"
+  API_KEY: "AIzaSyBb3UQGtQ3vRb3tQGlqJ4GHG5utzpJwHlU",       // clé API Google (pour AFFICHER l'agenda)
+  CLIENT_ID: "",     // ID client OAuth Google (pour AJOUTER / SUPPRIMER)
+  WEEK_START: 1,     // 1 = lundi, 0 = dimanche
+  SOON_DAYS: 2       // jours avec rendez-vous dans les N prochains jours = orange
+};
+const REFRESH_MIN = 5;
+/* Sans CALENDAR_ID / API_KEY : mode démo (ajout et suppression possibles, mais seulement en local). */
+
+const LOC = "fr-FR";
+const TXT = {today:"Aujourd'hui",all:"Toute la journée",more:"autres",close:"Fermer",upd:"Mis à jour",
+  err:"Impossible de joindre l'agenda. Dernières données affichées.",nonext:"Aucun rendez-vous à venir",
+  next:"Prochain rendez-vous",none:"Aucun rendez-vous ce jour",demo:"Mode démo",
+  d:["Aujourd'hui","Demain","Après-demain"],notitle:"(sans titre)"};
+
+const CATS = [
+ {re:/hopital|hospital|clinique|urgence|\bchu\b|scanner|\birm\b|radio|בית חולים/, icon:"🏥", bg:"#ffd0d0", bd:"#c00000"},
+ {re:/ophtalm|oculiste|opticien|lunettes|yeux/, icon:"👁️", bg:"#d6f0ff", bd:"#006b9e"},
+ {re:/dentiste|dentaire|שיניים/, icon:"🦷", bg:"#d2f4ff", bd:"#0088aa"},
+ {re:/analyse|prise de sang|laboratoire|\blabo\b/, icon:"🩸", bg:"#ffd0d0", bd:"#c00000"},
+ {re:/medecin|docteur|\bdr\b|doctor|cardio|generaliste|specialiste|dermato|rheumato|neuro|gyneco|pediatre|infirmier|infirmiere|consultation|רופא/, icon:"🩺", bg:"#ffd1ee", bd:"#c2007a"},
+ {re:/pharmacie|medicament|ordonnance/, icon:"💊", bg:"#cdf5cd", bd:"#16901a"},
+ {re:/kine|physio|reeducation/, icon:"💪", bg:"#d8ecff", bd:"#0b5ed7"},
+ {re:/coiffeur|coiffure|salon/, icon:"✂️", bg:"#f0dcff", bd:"#7a2fd0"},
+ {re:/anniversaire|birthday|fete/, icon:"🎂", bg:"#ffe0f0", bd:"#d6006e"},
+ {re:/dejeuner|diner|repas|restaurant|cafe|brunch|gouter/, icon:"🍽️", bg:"#ffe9b8", bd:"#b86e00"},
+ {re:/famille|petits-enfants|enfants|visite|fils|fille/, icon:"👨‍👩‍👧", bg:"#e3d9ff", bd:"#5a35c9"},
+ {re:/appel|telephone|\bcall\b|visio|zoom/, icon:"📞", bg:"#d3f2f0", bd:"#007d75"},
+ {re:/banque|notaire|impot|mairie|administration|assurance/, icon:"🏦", bg:"#e1e5ea", bd:"#37475a"},
+ {re:/bridge|club|\bjeu|loto|belote|bingo|chorale|gym|atelier|messe|synagogue/, icon:"🃏", bg:"#dcf5c8", bd:"#4c8f00"},
+ {re:/marche|promenade/, icon:"🚶", bg:"#dcf5c8", bd:"#4c8f00"}
+];
+const DEF = {icon:"📅", bg:"#fff0b3", bd:"#a67c00"};
+const QUICK = [["🩺","Médecin"],["🏥","Hôpital"],["🦷","Dentiste"],["💊","Pharmacie"],["✂️","Coiffeur"],["👨‍👩‍👧","Famille"],["📞","Appel"],["🍽️","Repas"]];
+const norm = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function cat(title){ const n = norm(title); return CATS.find(c => c.re.test(n)) || DEF; }
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const hm = d => d.toLocaleTimeString(LOC,{hour:"2-digit",minute:"2-digit"});
+const parseDay = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+const midnight = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const diffDays = d => Math.round((midnight(d) - midnight(new Date())) / 864e5);
+
+let view = new Date(); view.setDate(1);
+let events = {}, nextEv = null, failed = false, stamp = null, demoMap = null, demoN = 0;
+const demo = !CFG.CALENDAR_ID || !CFG.API_KEY;
+const canEdit = demo || !!CFG.CLIENT_ID;
+
+function gridRange(){
+  const first = new Date(view.getFullYear(), view.getMonth(), 1);
+  const lead = (first.getDay() - CFG.WEEK_START + 7) % 7;
+  const start = new Date(first); start.setDate(1 - lead);
+  const days = new Date(view.getFullYear(), view.getMonth()+1, 0).getDate();
+  const rows = Math.ceil((lead + days) / 7);
+  const end = new Date(start); end.setDate(start.getDate() + rows*7);
+  return {start, end, rows};
+}
+
+function addEvent(map, ev){
+  const s = ev.start || {}, e = ev.end || {}, title = ev.summary || TXT.notitle, id = ev.id;
+  if (s.date){
+    const a = parseDay(s.date), z = e.date ? parseDay(e.date) : new Date(a.getTime()+864e5);
+    for (let d = new Date(a); d < z; d.setDate(d.getDate()+1)){
+      const k = ymd(d); (map[k] = map[k] || []).push({id, title, all:true, start:new Date(d)});
+    }
+  } else if (s.dateTime){
+    const d = new Date(s.dateTime), k = ymd(d);
+    (map[k] = map[k] || []).push({id, title, all:false, start:d});
+  }
+}
+
+function demoData(){
+  const map = {}, base = midnight(new Date());
+  const at = (off,h,mi,title) => { const d = new Date(base); d.setDate(d.getDate()+off); d.setHours(h,mi);
+    addEvent(map,{id:"d"+(demoN++),summary:title,start:{dateTime:d.toISOString()}}); };
+  at(1,10,30,"Docteur Lévy"); at(2,14,0,"Hôpital – Scanner"); at(2,17,0,"Pharmacie");
+  at(5,9,30,"Dentiste"); at(7,12,30,"Déjeuner en famille"); at(7,16,0,"Appel avec David");
+  at(10,15,0,"Coiffeur"); at(12,10,0,"Kiné"); at(14,14,30,"Club de bridge"); at(16,8,45,"Prise de sang");
+  return map;
+}
+
+/* ---------- Lecture (clé API) ---------- */
+const BASE = () => "https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(CFG.CALENDAR_ID)+"/events";
+async function api(params){
+  const q = new URLSearchParams({key:CFG.API_KEY, singleEvents:"true", orderBy:"startTime", ...params});
+  const r = await fetch(BASE()+"?"+q);
+  if (!r.ok) throw new Error(r.status);
+  return (await r.json()).items || [];
+}
+
+function findNext(map){
+  const now = new Date(), today = ymd(now); let best = null;
+  Object.values(map).flat().forEach(e=>{
+    const ok = e.all ? ymd(e.start) >= today : e.start >= now;
+    const when = e.all ? midnight(e.start) : e.start;
+    if (ok && (!best || when < best.when)) best = {...e, when};
+  });
+  return best;
+}
+
+async function load(){
+  const {start,end} = gridRange();
+  const key = "cal-"+start.getFullYear()+"-"+start.getMonth()+"-"+view.getMonth();
+  if (demo){ demoMap = demoMap || demoData(); events = demoMap; nextEv = findNext(events); failed = false; stamp = new Date(); render(); return; }
+  try{
+    const items = await api({timeMin:start.toISOString(), timeMax:end.toISOString(), maxResults:"250"});
+    const map = {}; items.forEach(i => addEvent(map,i)); events = map;
+    const up = await api({timeMin:new Date().toISOString(), maxResults:"5"});
+    const m2 = {}; up.forEach(i => addEvent(m2,i)); nextEv = findNext(m2);
+    failed = false; stamp = new Date();
+    try{ localStorage.setItem(key, JSON.stringify({events:map})); }catch(e){}
+  }catch(e){
+    failed = true;
+    try{
+      const c = JSON.parse(localStorage.getItem(key)||"null");
+      if (c){ events = c.events; Object.values(events).forEach(a=>a.forEach(x=>x.start=new Date(x.start))); }
+    }catch(_){}
+  }
+  render();
+}
+
+/* ---------- Écriture (connexion Google, demandée au moment d'ajouter/supprimer) ---------- */
+let token = null, tokenExp = 0;
+function getToken(){
+  return new Promise((res, rej) => {
+    if (token && Date.now() < tokenExp) return res(token);
+    if (!(window.google && google.accounts && google.accounts.oauth2)) return rej(new Error("gsi"));
+    const tc = google.accounts.oauth2.initTokenClient({
+      client_id: CFG.CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/calendar.events",
+      callback: r => {
+        if (r && r.access_token){ token = r.access_token; tokenExp = Date.now() + ((r.expires_in||3600)-60)*1000; res(token); }
+        else rej(new Error((r && r.error) || "auth"));
+      },
+      error_callback: e => rej(new Error((e && e.type) || "auth"))
+    });
+    tc.requestAccessToken({prompt:""});
+  });
+}
+
+async function createEvent(title, dateStr, timeStr){
+  const [y,m,d] = dateStr.split("-").map(Number), [h,mi] = timeStr.split(":").map(Number);
+  const a = new Date(y,m-1,d,h,mi), z = new Date(a.getTime()+36e5);
+  if (demo){ addEvent(demoMap, {id:"d"+(demoN++), summary:title, start:{dateTime:a.toISOString()}}); return; }
+  const tk = await getToken(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const r = await fetch(BASE(), {method:"POST", headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
+    body: JSON.stringify({summary:title, start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
+  if (!r.ok) throw new Error(r.status);
+}
+
+async function removeEvent(ev){
+  if (demo){ Object.keys(demoMap).forEach(k => demoMap[k] = demoMap[k].filter(x => x.id !== ev.id)); return; }
+  const tk = await getToken();
+  const r = await fetch(BASE()+"/"+encodeURIComponent(ev.id), {method:"DELETE", headers:{Authorization:"Bearer "+tk}});
+  if (!r.ok && r.status !== 410) throw new Error(r.status);
+}
+
+/* ---------- Affichage ---------- */
+const dayLabel = n => TXT.d[n];
+
+function render(){
+  $("title").textContent = view.toLocaleDateString(LOC,{month:"long",year:"numeric"});
+  $("todayb").textContent = TXT.today;
+  $("addb").style.display = canEdit ? "" : "none";
+  const nx = $("next"); nx.innerHTML = "";
+  if (nextEv){
+    const c = cat(nextEv.title), n = diffDays(nextEv.start);
+    nx.className = (n>=0 && n<=CFG.SOON_DAYS) ? "soon" : "";
+    const ic = document.createElement("span"); ic.className="ic"; ic.textContent=c.icon;
+    const t = document.createElement("span");
+    const when = nextEv.start.toLocaleDateString(LOC,{weekday:"long",day:"numeric",month:"long"}) + (nextEv.all ? "" : " · "+hm(nextEv.start));
+    t.textContent = TXT.next+" : "+nextEv.title+" — "+(n>=0&&n<=2 ? dayLabel(n)+" · " : "")+when;
+    nx.append(ic,t);
+  } else { nx.className=""; nx.textContent = TXT.nonext; }
+
+  const {start,rows} = gridRange();
+  const g = $("grid"); g.innerHTML = "";
+  g.style.gridTemplateRows = "auto repeat("+rows+",1fr)";
+  for (let i=0;i<7;i++){
+    const d = new Date(2024,0,7+((i+CFG.WEEK_START)%7));
+    const h = document.createElement("div"); h.className="dow";
+    h.textContent = d.toLocaleDateString(LOC,{weekday:"long"}); g.appendChild(h);
+  }
+  for (let i=0;i<rows*7;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    const list = (events[ymd(d)]||[]).slice().sort((a,b)=>a.start-b.start);
+    const n = diffDays(d), soon = list.length && n>=0 && n<=CFG.SOON_DAYS;
+    const c = document.createElement("div");
+    c.className = "cell"+(d.getMonth()!==view.getMonth()?" out":"")+(n===0?" today":"")+
+      (list.length?(soon?" soon":" has"):"")+([0,6].includes(d.getDay())?" wk":"");
+    const top = document.createElement("div"); top.className="top";
+    const num = document.createElement("div"); num.className="num"; num.textContent=d.getDate(); top.appendChild(num);
+    if (soon){ const b=document.createElement("div"); b.className="badge"; b.textContent=dayLabel(n); top.appendChild(b); }
+    c.appendChild(top);
+    list.slice(0,3).forEach(e=>{
+      const k = cat(e.title), x = document.createElement("div"); x.className="e";
+      x.style.background = k.bg; x.style.borderColor = k.bd;
+      const ic = document.createElement("span"); ic.className="ic"; ic.textContent=k.icon; x.appendChild(ic);
+      if (!e.all){ const b=document.createElement("b"); b.textContent=hm(e.start); x.appendChild(b); }
+      x.appendChild(document.createTextNode(e.title)); c.appendChild(x);
+    });
+    if (list.length>3){ const m=document.createElement("div"); m.className="more"; m.textContent="+"+(list.length-3)+" "+TXT.more; c.appendChild(m); }
+    c.onclick = () => openDay(d);
+    g.appendChild(c);
+  }
+  const f = $("foot");
+  f.innerHTML = '<span><i style="background:#ff9f1c;border-color:#c25400"></i>Rendez-vous dans les '+CFG.SOON_DAYS+' jours</span>'+
+                '<span><i style="background:#dcefff;border-color:#0033a0"></i>Autres rendez-vous</span>';
+  const st = document.createElement("span");
+  st.textContent = failed ? TXT.err : (demo?TXT.demo+" · ":"")+(stamp? TXT.upd+" "+hm(stamp):"");
+  if (failed) st.style.color = "#b00020";
+  f.appendChild(st);
+}
+
+function btn(label, cls, fn){ const b=document.createElement("button"); b.textContent=label; if(cls) b.className=cls; b.onclick=fn; return b; }
+const closeOv = () => $("ov").classList.remove("on");
+function toast(t){ const el=$("toast"); el.textContent=t; el.style.display="block"; setTimeout(()=>el.style.display="none",3500); }
+
+function openDay(d){
+  const list = (events[ymd(d)]||[]).slice().sort((a,b)=>a.start-b.start);
+  const box = $("box"); box.innerHTML = "";
+  const h = document.createElement("h2");
+  h.textContent = d.toLocaleDateString(LOC,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  box.appendChild(h);
+  const n = diffDays(d);
+  if (list.length && n>=0 && n<=CFG.SOON_DAYS){ const a=document.createElement("div"); a.className="alert"; a.textContent="⏰ "+dayLabel(n); box.appendChild(a); }
+  if (!list.length){ const p=document.createElement("div"); p.className="empty"; p.textContent=TXT.none; box.appendChild(p); }
+  list.forEach(e=>{
+    const k = cat(e.title), r=document.createElement("div"); r.className="row";
+    r.style.background=k.bg; r.style.borderColor=k.bd;
+    const ic=document.createElement("span"); ic.className="big"; ic.textContent=k.icon;
+    const t=document.createElement("div"); t.className="t";
+    const s=document.createElement("small"); s.textContent = e.all ? TXT.all : hm(e.start);
+    t.appendChild(s); t.appendChild(document.createTextNode(e.title));
+    r.append(ic,t);
+    if (canEdit && e.id) r.appendChild(btn("🗑 Supprimer","del",()=>confirmDelete(d,e)));
+    box.appendChild(r);
+  });
+  const acts = document.createElement("div"); acts.className="acts";
+  if (canEdit) acts.appendChild(btn("➕ Ajouter ce jour","add",()=>openForm(d)));
+  acts.appendChild(btn(TXT.close,"alt",closeOv));
+  box.appendChild(acts);
+  $("ov").classList.add("on");
+}
+
+function confirmDelete(d, e){
+  const box = $("box"); box.innerHTML = "";
+  const k = cat(e.title);
+  const q = document.createElement("div"); q.className="ask";
+  q.textContent = k.icon+" Supprimer « "+e.title+" » ?";
+  const msg = document.createElement("div"); msg.className="msg";
+  const acts = document.createElement("div"); acts.className="acts";
+  acts.appendChild(btn("Oui, supprimer","del",async ()=>{
+    msg.textContent = "…";
+    try{ await removeEvent(e); closeOv(); toast("Rendez-vous supprimé ✔"); load(); }
+    catch(err){ msg.textContent = "Impossible de supprimer. Vérifiez la connexion ou la connexion Google."; }
+  }));
+  acts.appendChild(btn("Non, garder","alt",()=>openDay(d)));
+  box.append(q,msg,acts);
+}
+
+function openForm(date){
+  const box = $("box"); box.innerHTML = "";
+  const h = document.createElement("h2"); h.textContent = "Nouveau rendez-vous"; box.appendChild(h);
+  const quick = document.createElement("div"); quick.className="quick";
+  QUICK.forEach(([i,l]) => quick.appendChild(btn(i+" "+l,"alt",()=>{ ti.value = l+" "; ti.focus(); })));
+  box.appendChild(quick);
+  const mk = (txt, input) => { const l=document.createElement("label"); l.textContent=txt; box.append(l,input); };
+  const ti = document.createElement("input"); ti.type="text"; ti.placeholder="Ex. Docteur Lévy";
+  const di = document.createElement("input"); di.type="date"; di.value = ymd(date || new Date());
+  const tm = document.createElement("input"); tm.type="time"; tm.value = "10:00";
+  mk("Quel rendez-vous ?", ti); mk("Quel jour ?", di); mk("À quelle heure ?", tm);
+  const msg = document.createElement("div"); msg.className="msg"; box.appendChild(msg);
+  const acts = document.createElement("div"); acts.className="acts";
+  acts.appendChild(btn("✔ Enregistrer","add",async ()=>{
+    const title = ti.value.trim();
+    if (!title){ msg.textContent = "Écrivez le nom du rendez-vous."; return; }
+    if (!di.value || !tm.value){ msg.textContent = "Choisissez le jour et l'heure."; return; }
+    msg.style.color = "#444"; msg.textContent = "Enregistrement…";
+    try{
+      await createEvent(title, di.value, tm.value);
+      const [y,m] = di.value.split("-").map(Number); view = new Date(y,m-1,1);
+      closeOv(); toast("Rendez-vous ajouté ✔"); load();
+    }catch(err){ msg.style.color = ""; msg.textContent = "Impossible d'enregistrer. Vérifiez la connexion ou la connexion Google."; }
+  }));
+  acts.appendChild(btn("Annuler","alt",closeOv));
+  box.appendChild(acts);
+  $("ov").classList.add("on");
+}
+
+$("ov").onclick = e => { if (e.target.id==="ov") closeOv(); };
+$("prev").onclick = () => { view.setMonth(view.getMonth()-1); load(); };
+$("nextm").onclick = () => { view.setMonth(view.getMonth()+1); load(); };
+$("todayb").onclick = () => { view = new Date(); view.setDate(1); load(); };
+$("addb").onclick = () => openForm(new Date());
+
+let idle;
+function resetIdle(){ clearTimeout(idle); idle = setTimeout(()=>{ view=new Date(); view.setDate(1); closeOv(); load(); }, 5*60*1000); }
+["click","touchstart"].forEach(ev=>document.addEventListener(ev,resetIdle,{passive:true}));
+setInterval(() => { if (!$("ov").classList.contains("on")) load(); }, REFRESH_MIN*60*1000);
+async function keepAwake(){ try{ if(navigator.wakeLock) await navigator.wakeLock.request("screen"); }catch(e){} }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ keepAwake(); load(); } });
+keepAwake(); resetIdle(); load();
+</script>
+</body>
+</html>
