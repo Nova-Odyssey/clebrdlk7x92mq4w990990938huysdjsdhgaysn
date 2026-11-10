@@ -249,6 +249,17 @@ async function removeEvent(ev){
 
 /* ---------- Affichage ---------- */
 const dayLabel = n => TXT.d[n];
+function why(err){
+  const m = String((err && err.message) || err);
+  if (m==="gsi") return "Le script de connexion Google n'a pas chargé (bloqueur de publicités ou réseau). Code : gsi";
+  if (m==="popup_closed" || m==="popup_failed_to_open") return "La fenêtre de connexion Google a été fermée ou bloquée. Autorisez les fenêtres pop-up. Code : "+m;
+  if (m==="access_denied") return "Accès refusé : ajoutez votre adresse comme « utilisateur de test » dans l'écran de consentement OAuth. Code : access_denied";
+  if (m==="401") return "Connexion Google expirée. Réessayez. Code : 401";
+  if (m==="403") return "Refusé par Google : pas le droit de modifier ce calendrier, ou API Google Calendar non activée. Code : 403";
+  if (m==="404") return "Calendrier ou rendez-vous introuvable. Vérifiez CALENDAR_ID. Code : 404";
+  if (m==="400") return "Requête refusée par Google. Code : 400";
+  return "Erreur : "+m;
+}
 
 function render(){
   $("title").textContent = view.toLocaleDateString(LOC,{month:"long",year:"numeric"});
@@ -301,6 +312,7 @@ function render(){
   const st = document.createElement("span");
   st.textContent = failed ? TXT.err : (demo?TXT.demo+" · ":"")+(stamp? TXT.upd+" "+hm(stamp):"");
   if (failed) st.style.color = "#b00020";
+  if (!demo && !CFG.CLIENT_ID){ const ro=document.createElement("span"); ro.textContent="🔒 Lecture seule : CLIENT_ID manquant dans le fichier"; ro.style.color="#b00020"; f.appendChild(ro); }
   f.appendChild(st);
 }
 
@@ -350,7 +362,7 @@ function confirmDelete(d, e){
   acts.appendChild(btn("Oui, supprimer","del",async ()=>{
     msg.textContent = "…";
     try{ await removeEvent(e); closeOv(); toast("Rendez-vous supprimé ✔"); load(); }
-    catch(err){ msg.textContent = "Impossible de supprimer. Vérifiez la connexion ou la connexion Google."; }
+    catch(err){ msg.textContent = "Impossible de supprimer. "+why(err); }
   }));
   acts.appendChild(btn("Non, garder","alt",()=>openDay(d)));
   box.append(q,msg,acts);
@@ -379,7 +391,7 @@ function openForm(date, ev){
       if (ev) await updateEvent(ev, title, di.value, tm.value); else await createEvent(title, di.value, tm.value);
       const [y,m] = di.value.split("-").map(Number); view = new Date(y,m-1,1);
       closeOv(); toast(ev ? "Rendez-vous modifié ✔" : "Rendez-vous ajouté ✔"); load();
-    }catch(err){ msg.style.color = ""; msg.textContent = "Impossible d'enregistrer. Vérifiez la connexion ou la connexion Google."; }
+    }catch(err){ msg.style.color = ""; msg.textContent = "Impossible d'enregistrer. "+why(err); }
   }));
   acts.appendChild(btn("Annuler","alt",closeOv));
   box.appendChild(acts);
