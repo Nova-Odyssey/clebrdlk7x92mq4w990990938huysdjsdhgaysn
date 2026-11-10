@@ -51,7 +51,7 @@ footer i{display:inline-block;width:1em;height:1em;border-radius:4px;vertical-al
 .empty{font-size:clamp(22px,3vw,36px);color:var(--mute);margin:20px 0}
 .acts{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
 label{display:block;font-size:clamp(22px,2.8vw,32px);font-weight:800;margin:14px 0 6px}
-input[type=text],input[type=date],input[type=time]{width:100%;font:inherit;font-size:clamp(26px,3.2vw,38px);padding:10px 12px;border:3px solid var(--brand);border-radius:12px;-webkit-user-select:text;user-select:text}
+input[type=text],input[type=date],input[type=time]{width:100%;font:inherit;font-size:clamp(26px,3.2vw,38px);padding:10px 12px;border:3px solid var(--brand);border-radius:12px;-webkit-user-select:text;user-select:text}\ntextarea{font-family:Arial,Helvetica,sans-serif}
 .quick{display:flex;flex-wrap:wrap;gap:8px}
 .quick button{font-size:clamp(18px,2.2vw,26px);min-height:56px;padding:6px 14px}
 .msg{font-size:clamp(20px,2.6vw,30px);font-weight:800;color:var(--bad);margin-top:10px;min-height:1.2em}
@@ -137,15 +137,15 @@ function gridRange(){
 }
 
 function addEvent(map, ev){
-  const s = ev.start || {}, e = ev.end || {}, title = ev.summary || TXT.notitle, id = ev.id;
+  const s = ev.start || {}, e = ev.end || {}, title = ev.summary || TXT.notitle, id = ev.id, notes = ev.description || "";
   if (s.date){
     const a = parseDay(s.date), z = e.date ? parseDay(e.date) : new Date(a.getTime()+864e5);
     for (let d = new Date(a); d < z; d.setDate(d.getDate()+1)){
-      const k = ymd(d); (map[k] = map[k] || []).push({id, title, all:true, start:new Date(d)});
+      const k = ymd(d); (map[k] = map[k] || []).push({id, title, notes, all:true, start:new Date(d)});
     }
   } else if (s.dateTime){
     const d = new Date(s.dateTime), k = ymd(d);
-    (map[k] = map[k] || []).push({id, title, all:false, start:d, end: e.dateTime ? new Date(e.dateTime) : null});
+    (map[k] = map[k] || []).push({id, title, notes, all:false, start:d, end: e.dateTime ? new Date(e.dateTime) : null});
   }
 }
 
@@ -218,25 +218,25 @@ function getToken(){
   });
 }
 
-async function createEvent(title, dateStr, timeStr){
+async function createEvent(title, dateStr, timeStr, notes){
   const [y,m,d] = dateStr.split("-").map(Number), [h,mi] = timeStr.split(":").map(Number);
   const a = new Date(y,m-1,d,h,mi), z = new Date(a.getTime()+36e5);
-  if (demo){ addEvent(demoMap, {id:"d"+(demoN++), summary:title, start:{dateTime:a.toISOString()}}); return; }
+  if (demo){ addEvent(demoMap, {id:"d"+(demoN++), summary:title, description:notes, start:{dateTime:a.toISOString()}}); return; }
   const tk = await getToken(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const r = await fetch(BASE(), {method:"POST", headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
-    body: JSON.stringify({summary:title, start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
+    body: JSON.stringify({summary:title, description:notes || "", start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
   if (!r.ok) throw new Error(r.status);
 }
 
-async function updateEvent(ev, title, dateStr, timeStr){
+async function updateEvent(ev, title, dateStr, timeStr, notes){
   const [y,m,d] = dateStr.split("-").map(Number), [h,mi] = timeStr.split(":").map(Number);
   const a = new Date(y,m-1,d,h,mi);
   const dur = (ev.end && ev.start && ev.end > ev.start) ? (ev.end - ev.start) : 36e5;
   const z = new Date(a.getTime()+dur);
-  if (demo){ await removeEvent(ev); addEvent(demoMap, {id:"d"+(demoN++), summary:title, start:{dateTime:a.toISOString()}}); return; }
+  if (demo){ await removeEvent(ev); addEvent(demoMap, {id:"d"+(demoN++), summary:title, description:notes, start:{dateTime:a.toISOString()}}); return; }
   const tk = await getToken(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const r = await fetch(BASE()+"/"+encodeURIComponent(ev.id), {method:"PATCH", headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
-    body: JSON.stringify({summary:title, start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
+    body: JSON.stringify({summary:title, description:notes || "", start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
   if (!r.ok) throw new Error(r.status);
 }
 
@@ -336,6 +336,12 @@ function openDay(d){
     const t=document.createElement("div"); t.className="t";
     const s=document.createElement("small"); s.textContent = e.all ? TXT.all : hm(e.start);
     t.appendChild(s); t.appendChild(document.createTextNode(e.title));
+    if (e.notes && e.notes.trim()){
+      const note = document.createElement("div");
+      note.style.cssText = "font-size:.62em;font-weight:500;white-space:pre-wrap;margin-top:6px";
+      note.textContent = "📝 " + e.notes;
+      t.appendChild(note);
+    }
     r.append(ic,t);
     if (canEdit && e.id){
       const rb = document.createElement("div"); rb.className = "rb";
@@ -378,8 +384,13 @@ function openForm(date, ev){
   const ti = document.createElement("input"); ti.type="text"; ti.placeholder="Ex. Docteur Lévy";
   const di = document.createElement("input"); di.type="date"; di.value = ymd(date || new Date());
   const tm = document.createElement("input"); tm.type="time"; tm.value = "10:00";
+  const ni = document.createElement("textarea");
+  ni.placeholder = "Ajouter des informations, un rappel, une adresse…";
+  ni.value = ev ? (ev.notes || "") : "";
+  ni.rows = 4;
+  ni.style.cssText = "width:100%;font:inherit;font-size:clamp(22px,2.8vw,32px);padding:10px 12px;border:3px solid var(--brand);border-radius:12px;resize:vertical;-webkit-user-select:text;user-select:text";
   if (ev){ ti.value = ev.title; di.value = ymd(ev.start); tm.value = pad(ev.start.getHours())+":"+pad(ev.start.getMinutes()); }
-  mk("Quel rendez-vous ?", ti); mk("Quel jour ?", di); mk("À quelle heure ?", tm);
+  mk("Quel rendez-vous ?", ti); mk("Quel jour ?", di); mk("À quelle heure ?", tm); mk("Notes (facultatif)", ni);
   const msg = document.createElement("div"); msg.className="msg"; box.appendChild(msg);
   const acts = document.createElement("div"); acts.className="acts";
   acts.appendChild(btn("✔ Enregistrer","add",async ()=>{
@@ -388,7 +399,7 @@ function openForm(date, ev){
     if (!di.value || !tm.value){ msg.textContent = "Choisissez le jour et l'heure."; return; }
     msg.style.color = "#444"; msg.textContent = "Enregistrement…";
     try{
-      if (ev) await updateEvent(ev, title, di.value, tm.value); else await createEvent(title, di.value, tm.value);
+      if (ev) await updateEvent(ev, title, di.value, tm.value, ni.value.trim()); else await createEvent(title, di.value, tm.value, ni.value.trim());
       const [y,m] = di.value.split("-").map(Number); view = new Date(y,m-1,1);
       closeOv(); toast(ev ? "Rendez-vous modifié ✔" : "Rendez-vous ajouté ✔"); load();
     }catch(err){ msg.style.color = ""; msg.textContent = "Impossible d'enregistrer. "+why(err); }
