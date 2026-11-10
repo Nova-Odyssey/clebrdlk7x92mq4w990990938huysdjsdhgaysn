@@ -15,6 +15,8 @@ h1{flex:1;margin:0;text-align:center;font-size:clamp(28px,4.4vw,54px);color:var(
 button{font:inherit;font-size:clamp(20px,2.5vw,30px);font-weight:800;border:3px solid var(--brand);background:var(--brand);color:#fff;border-radius:14px;padding:8px 18px;min-height:64px;cursor:pointer}
 button.alt{background:#fff;color:var(--brand)}
 button.add{background:var(--ok);border-color:var(--ok)}
+button.alt.sm{font-size:clamp(18px,2.2vw,26px);min-height:56px;white-space:nowrap}
+.rb{display:flex;flex-direction:column;gap:8px}
 button.del{background:var(--bad);border-color:var(--bad);font-size:clamp(18px,2.2vw,26px);min-height:56px;white-space:nowrap}
 #next{display:flex;align-items:center;gap:12px;background:var(--has);border:4px solid var(--brand);border-radius:14px;padding:8px 14px;font-size:clamp(20px,2.7vw,34px);font-weight:800}
 #next.soon{background:var(--soon);border-color:var(--soonb)}
@@ -143,7 +145,7 @@ function addEvent(map, ev){
     }
   } else if (s.dateTime){
     const d = new Date(s.dateTime), k = ymd(d);
-    (map[k] = map[k] || []).push({id, title, all:false, start:d});
+    (map[k] = map[k] || []).push({id, title, all:false, start:d, end: e.dateTime ? new Date(e.dateTime) : null});
   }
 }
 
@@ -191,7 +193,7 @@ async function load(){
     failed = true;
     try{
       const c = JSON.parse(localStorage.getItem(key)||"null");
-      if (c){ events = c.events; Object.values(events).forEach(a=>a.forEach(x=>x.start=new Date(x.start))); }
+      if (c){ events = c.events; Object.values(events).forEach(a=>a.forEach(x=>{ x.start=new Date(x.start); if(x.end) x.end=new Date(x.end); })); }
     }catch(_){}
   }
   render();
@@ -222,6 +224,18 @@ async function createEvent(title, dateStr, timeStr){
   if (demo){ addEvent(demoMap, {id:"d"+(demoN++), summary:title, start:{dateTime:a.toISOString()}}); return; }
   const tk = await getToken(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const r = await fetch(BASE(), {method:"POST", headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
+    body: JSON.stringify({summary:title, start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
+  if (!r.ok) throw new Error(r.status);
+}
+
+async function updateEvent(ev, title, dateStr, timeStr){
+  const [y,m,d] = dateStr.split("-").map(Number), [h,mi] = timeStr.split(":").map(Number);
+  const a = new Date(y,m-1,d,h,mi);
+  const dur = (ev.end && ev.start && ev.end > ev.start) ? (ev.end - ev.start) : 36e5;
+  const z = new Date(a.getTime()+dur);
+  if (demo){ await removeEvent(ev); addEvent(demoMap, {id:"d"+(demoN++), summary:title, start:{dateTime:a.toISOString()}}); return; }
+  const tk = await getToken(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const r = await fetch(BASE()+"/"+encodeURIComponent(ev.id), {method:"PATCH", headers:{Authorization:"Bearer "+tk,"Content-Type":"application/json"},
     body: JSON.stringify({summary:title, start:{dateTime:a.toISOString(),timeZone:tz}, end:{dateTime:z.toISOString(),timeZone:tz}})});
   if (!r.ok) throw new Error(r.status);
 }
@@ -311,7 +325,12 @@ function openDay(d){
     const s=document.createElement("small"); s.textContent = e.all ? TXT.all : hm(e.start);
     t.appendChild(s); t.appendChild(document.createTextNode(e.title));
     r.append(ic,t);
-    if (canEdit && e.id) r.appendChild(btn("🗑 Supprimer","del",()=>confirmDelete(d,e)));
+    if (canEdit && e.id){
+      const rb = document.createElement("div"); rb.className = "rb";
+      if (!e.all) rb.appendChild(btn("✏️ Modifier","alt sm",()=>openForm(d,e)));
+      rb.appendChild(btn("🗑 Supprimer","del",()=>confirmDelete(d,e)));
+      r.appendChild(rb);
+    }
     box.appendChild(r);
   });
   const acts = document.createElement("div"); acts.className="acts";
@@ -337,9 +356,9 @@ function confirmDelete(d, e){
   box.append(q,msg,acts);
 }
 
-function openForm(date){
+function openForm(date, ev){
   const box = $("box"); box.innerHTML = "";
-  const h = document.createElement("h2"); h.textContent = "Nouveau rendez-vous"; box.appendChild(h);
+  const h = document.createElement("h2"); h.textContent = ev ? "Modifier le rendez-vous" : "Nouveau rendez-vous"; box.appendChild(h);
   const quick = document.createElement("div"); quick.className="quick";
   QUICK.forEach(([i,l]) => quick.appendChild(btn(i+" "+l,"alt",()=>{ ti.value = l+" "; ti.focus(); })));
   box.appendChild(quick);
@@ -347,6 +366,7 @@ function openForm(date){
   const ti = document.createElement("input"); ti.type="text"; ti.placeholder="Ex. Docteur Lévy";
   const di = document.createElement("input"); di.type="date"; di.value = ymd(date || new Date());
   const tm = document.createElement("input"); tm.type="time"; tm.value = "10:00";
+  if (ev){ ti.value = ev.title; di.value = ymd(ev.start); tm.value = pad(ev.start.getHours())+":"+pad(ev.start.getMinutes()); }
   mk("Quel rendez-vous ?", ti); mk("Quel jour ?", di); mk("À quelle heure ?", tm);
   const msg = document.createElement("div"); msg.className="msg"; box.appendChild(msg);
   const acts = document.createElement("div"); acts.className="acts";
@@ -356,9 +376,9 @@ function openForm(date){
     if (!di.value || !tm.value){ msg.textContent = "Choisissez le jour et l'heure."; return; }
     msg.style.color = "#444"; msg.textContent = "Enregistrement…";
     try{
-      await createEvent(title, di.value, tm.value);
+      if (ev) await updateEvent(ev, title, di.value, tm.value); else await createEvent(title, di.value, tm.value);
       const [y,m] = di.value.split("-").map(Number); view = new Date(y,m-1,1);
-      closeOv(); toast("Rendez-vous ajouté ✔"); load();
+      closeOv(); toast(ev ? "Rendez-vous modifié ✔" : "Rendez-vous ajouté ✔"); load();
     }catch(err){ msg.style.color = ""; msg.textContent = "Impossible d'enregistrer. Vérifiez la connexion ou la connexion Google."; }
   }));
   acts.appendChild(btn("Annuler","alt",closeOv));
